@@ -1,82 +1,253 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <time.h>
 
-void mult(double ** a, double ** b, double ** res, int r, int c){
-  for(int i=0;i<r;i++){
-    for(int j=0;j<c;j++){
-      for(int k=0;k<r;k++){
-        res[i][j] += a[i][k] * b[k][j];
-      }
+#define MAX_PIXEL_VALUE 255
+#define KERNEL_SIZE 3
+#define HISTOGRAM_SIZE 256
+
+typedef unsigned char pixel_t;
+
+// Structure to hold image data
+typedef struct {
+    pixel_t* data;
+    int width;
+    int height;
+} Image;
+
+// Function to create new image
+Image* create_image(int width, int height) {
+    Image* img = (Image*)malloc(sizeof(Image));
+    img->width = width;
+    img->height = height;
+    img->data = (pixel_t*)calloc(width * height, sizeof(pixel_t));
+    return img;
+}
+
+// Function to free image
+void free_image(Image* img) {
+    free(img->data);
+    free(img);
+}
+
+// Function to get pixel value
+pixel_t get_pixel(Image* img, int x, int y) {
+    if (x < 0 || x >= img->width || y < 0 || y >= img->height) {
+        return 0;
     }
-  }
+    return img->data[y * img->width + x];
 }
 
-void print(double ** a, int r, int c){
-  r = r > 5 ? 5 : r;
-  c = c > 5 ? 5 : c;
-
-  printf("\n");
-  for(int row=0;row<r;row++){
-    for(int col=0;col<c;col++){
-      printf("%.2lf ", a[row][col]);
+// Function to set pixel value
+void set_pixel(Image* img, int x, int y, pixel_t value) {
+    if (x < 0 || x >= img->width || y < 0 || y >= img->height) {
+        return;
     }
-    printf("\n");
-  }
-  printf("\n");
+    img->data[y * img->width + x] = value;
 }
 
-double ** allocateMatrix(int r, int c){
-  double ** m = (double **)malloc(r * sizeof(double *));
-  for(int i=0;i<r;i++){
-    m[i] = (double *)malloc(c * sizeof(double));
-  }
-  return m;
-}
-
-void freeMatrix(double ** m, int r){
-  for(int i=0;i<r;i++){
-    free(m[i]);
-  }
-  free(m);
-}
-
-int main(int argc, char * argv[]){
-
-  if(argc < 3){
-    printf("Usage: main <row count> <column count>\n");
-    exit(1);
-  }
-
-  int r  = atoi(argv[1]);
-  int c  = atoi(argv[2]);
-
-  double ** a   = allocateMatrix(r, c);
-  double ** b   = allocateMatrix(r, c);
-  double ** res = allocateMatrix(r, c);
-
-  double result    = 0.0;
-
-  printf("Input: row = %d, col = %d\n", r, c);
-
-  // init data
-  for(int i=0;i<r;i++){
-    for(int j=0;j<c;j++){
-      a[i][j] = (double)(i + j);
-      b[i][j] = (double)(i + j);
-      res[i][j] = 0;
+// Sobel edge detection
+Image* sobel_edge_detection(Image* input) {
+    // Sobel kernels
+    const int sobel_x[3][3] = {
+        {-1, 0, 1},
+        {-2, 0, 2},
+        {-1, 0, 1}
+    };
+    const int sobel_y[3][3] = {
+        {-1, -2, -1},
+        {0, 0, 0},
+        {1, 2, 1}
+    };
+    
+    Image* output = create_image(input->width, input->height);
+    
+    for (int y = 1; y < input->height - 1; y++) {
+        for (int x = 1; x < input->width - 1; x++) {
+            int gx = 0, gy = 0;
+            
+            // Apply kernels
+            for (int ky = -1; ky <= 1; ky++) {
+                for (int kx = -1; kx <= 1; kx++) {
+                    pixel_t pixel = get_pixel(input, x + kx, y + ky);
+                    gx += pixel * sobel_x[ky + 1][kx + 1];
+                    gy += pixel * sobel_y[ky + 1][kx + 1];
+                }
+            }
+            
+            // Calculate magnitude
+            int magnitude = (int)sqrt(gx * gx + gy * gy);
+            magnitude = magnitude > MAX_PIXEL_VALUE ? MAX_PIXEL_VALUE : magnitude;
+            set_pixel(output, x, y, (pixel_t)magnitude);
+        }
     }
-  }
+    
+    return output;
+}
 
-  print(a, r, c);
-  print(b, r, c);
+// Gaussian blur
+Image* gaussian_blur(Image* input) {
+    // Gaussian kernel (3x3)
+    const float kernel[3][3] = {
+        {1.0/16, 2.0/16, 1.0/16},
+        {2.0/16, 4.0/16, 2.0/16},
+        {1.0/16, 2.0/16, 1.0/16}
+    };
+    
+    Image* output = create_image(input->width, input->height);
+    
+    for (int y = 1; y < input->height - 1; y++) {
+        for (int x = 1; x < input->width - 1; x++) {
+            float sum = 0.0;
+            
+            // Apply kernel
+            for (int ky = -1; ky <= 1; ky++) {
+                for (int kx = -1; kx <= 1; kx++) {
+                    pixel_t pixel = get_pixel(input, x + kx, y + ky);
+                    sum += pixel * kernel[ky + 1][kx + 1];
+                }
+            }
+            
+            set_pixel(output, x, y, (pixel_t)sum);
+        }
+    }
+    
+    return output;
+}
 
-    mult(a, b, res, r, c);
+// Histogram equalization
+Image* histogram_equalization(Image* input) {
+    int histogram[HISTOGRAM_SIZE] = {0};
+    float cdf[HISTOGRAM_SIZE] = {0.0};
+    int pixel_count = input->width * input->height;
+    Image* output = create_image(input->width, input->height);
+    
+    // Calculate histogram
+    for (int i = 0; i < pixel_count; i++) {
+        histogram[input->data[i]]++;
+    }
+    
+    // Calculate cumulative distribution function
+    cdf[0] = histogram[0];
+    for (int i = 1; i < HISTOGRAM_SIZE; i++) {
+        cdf[i] = cdf[i-1] + histogram[i];
+    }
+    
+    // Normalize CDF
+    for (int i = 0; i < HISTOGRAM_SIZE; i++) {
+        cdf[i] /= pixel_count;
+    }
+    
+    // Apply equalization
+    for (int i = 0; i < pixel_count; i++) {
+        output->data[i] = (pixel_t)(cdf[input->data[i]] * MAX_PIXEL_VALUE);
+    }
+    
+    return output;
+}
 
-  print(res, r, c);
+// Morphological dilation
+Image* dilate(Image* input) {
+    Image* output = create_image(input->width, input->height);
+    
+    for (int y = 1; y < input->height - 1; y++) {
+        for (int x = 1; x < input->width - 1; x++) {
+            pixel_t max_value = 0;
+            
+            // Find maximum in 3x3 neighborhood
+            for (int ky = -1; ky <= 1; ky++) {
+                for (int kx = -1; kx <= 1; kx++) {
+                    pixel_t pixel = get_pixel(input, x + kx, y + ky);
+                    if (pixel > max_value) {
+                        max_value = pixel;
+                    }
+                }
+            }
+            
+            set_pixel(output, x, y, max_value);
+        }
+    }
+    
+    return output;
+}
 
-  freeMatrix(a, r);
-  freeMatrix(b, r);
-  freeMatrix(res, r);
+// Morphological erosion
+Image* erode(Image* input) {
+    Image* output = create_image(input->width, input->height);
+    
+    for (int y = 1; y < input->height - 1; y++) {
+        for (int x = 1; x < input->width - 1; x++) {
+            pixel_t min_value = MAX_PIXEL_VALUE;
+            
+            // Find minimum in 3x3 neighborhood
+            for (int ky = -1; ky <= 1; ky++) {
+                for (int kx = -1; kx <= 1; kx++) {
+                    pixel_t pixel = get_pixel(input, x + kx, y + ky);
+                    if (pixel < min_value) {
+                        min_value = pixel;
+                    }
+                }
+            }
+            
+            set_pixel(output, x, y, min_value);
+        }
+    }
+    
+    return output;
+}
 
-  return 0;
+// Function to apply all transformations in sequence
+Image* process_image(Image* input) {
+    Image* temp1, *temp2, *temp3, *temp4, *result;
+    
+    // Apply gaussian blur first to reduce noise
+    temp1 = gaussian_blur(input);
+    
+    // Apply edge detection
+    temp2 = sobel_edge_detection(temp1);
+    
+    // Enhance edges through histogram equalization
+    temp3 = histogram_equalization(temp2);
+    
+    // Apply morphological operations to clean up edges
+    temp4 = dilate(temp3);
+    result = erode(temp4);
+    
+    // Clean up intermediate results
+    free_image(temp1);
+    free_image(temp2);
+    free_image(temp3);
+    free_image(temp4);
+    
+    return result;
+}
+
+int main(int argc, char * argv[]) {
+
+    int size = atoi(argv[1]);
+
+    int IMG_WIDTH = size;
+    int IMG_HEIGHT = size;
+
+    // Create test image with random noise
+    Image* input = create_image(IMG_WIDTH, IMG_HEIGHT);
+    for (int i = 0; i < IMG_WIDTH * IMG_HEIGHT; i++) {
+        input->data[i] = rand() % (MAX_PIXEL_VALUE + 1);
+    }
+    
+    // Process image and measure time
+    clock_t start = clock();
+    Image* output = process_image(input);
+    clock_t end = clock();
+    
+    double cpu_time = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Processing time: %f seconds\n", cpu_time);
+    
+    // Clean up
+    free_image(input);
+    free_image(output);
+    
+    return 0;
 }
