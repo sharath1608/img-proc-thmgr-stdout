@@ -359,6 +359,11 @@ Image* process_image(Image* input) {
 
 int main_worker(int argc, char * argv[]) {
 
+    if(argc < 3){
+      printf("Usage: %s <size> <num threads>\n", argv[0]);
+      return 1;
+    }
+
     int size = atoi(argv[1]);
     int IMG_WIDTH = size;
     int IMG_HEIGHT = size;

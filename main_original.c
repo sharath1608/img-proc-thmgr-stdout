@@ -226,6 +226,11 @@ Image* process_image(Image* input) {
 
 int main(int argc, char * argv[]) {
 
+    if(argc < 2){
+      printf("Usage: %s <size>\n", argv[0]);
+      return 1;
+    }
+
     int size = atoi(argv[1]);
 
     int IMG_WIDTH = size;
