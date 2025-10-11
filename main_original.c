@@ -236,6 +236,8 @@ int main(int argc, char * argv[]) {
     int IMG_WIDTH = size;
     int IMG_HEIGHT = size;
 
+    printf("Image size: [%d x %d]\n", IMG_WIDTH, IMG_HEIGHT);
+
     // Create test image with random noise
     Image* input = create_image(IMG_WIDTH, IMG_HEIGHT);
     for (int i = 0; i < IMG_WIDTH * IMG_HEIGHT; i++) {

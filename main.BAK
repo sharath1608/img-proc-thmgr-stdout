@@ -370,6 +370,8 @@ int main(int argc, char * argv[]) {
 
     num_threads = atoi(argv[argc-1]);
 
+    printf("Image size: [%d x %d]\n", IMG_WIDTH, IMG_HEIGHT);
+
     // Initialize threadpool
     thpool = thpool_init(num_threads);
 
