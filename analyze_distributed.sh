@@ -191,28 +191,28 @@ echo "$json_output" > compile_commands.json
 echo "JSON data written to compile_commands.json"
 
 # TALP coverage generation - start
-echo "TALP coverage generation"
+# echo "TALP coverage generation"
 
-cp main_original.c main_original.bak.c
-argv-to-klee main_original.c > main_original.c.tmp && mv main_original.c.tmp main_original.c
+# cp main_original.c main_original.bak.c
+# argv-to-klee main_original.c > main_original.c.tmp && mv main_original.c.tmp main_original.c
 
-if docker exec talp-cov sh -c "cd $repo_path && analyze main_original.c"; then
-  echo "TALP coverage generated successfully"
-else
-  echo "TALP coverage generation failed with exit code $?"
-fi
+# if docker exec talp-cov sh -c "cd $repo_path && analyze main_original.c"; then
+#   echo "TALP coverage generated successfully"
+# else
+#   echo "TALP coverage generation failed with exit code $?"
+# fi
 
-mv main_original.bak.c main_original.c
+# mv main_original.bak.c main_original.c
 
-for dir in klee-out-*-replay-*; do
-    if [ -d "$dir" ]; then
-        klee_dir="$dir"
-        break
-    fi
-done
-echo "$klee_dir"
+# for dir in klee-out-*-replay-*; do
+#     if [ -d "$dir" ]; then
+#         klee_dir="$dir"
+#         break
+#     fi
+# done
+# echo "$klee_dir"
 
-cov-callgraph-generator --cov-file "$klee_dir/test000001-replay/test000001.cov" --output-file test000001.covgraph.json -p .
+# cov-callgraph-generator --cov-file "$klee_dir/test000001-replay/test000001.cov" --output-file test000001.covgraph.json -p .
 # TALP coverage generation - end
 
 # Generate parallel analysis
